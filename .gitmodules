@@ -1,0 +1,3 @@
+[submodule "libs/concordpp"]
+	path = libs/concordpp
+	url = git@github.com:hiddos/concordpp

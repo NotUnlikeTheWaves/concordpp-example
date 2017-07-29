@@ -1,0 +1,1 @@
+Replace this line with the token of your Discord bot, then rename this file to token.txt
