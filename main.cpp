@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <ctime>
+#include <stdio.h>
 
 int quit = 0;
 concordpp::rest::rest_client *d_rest;
@@ -55,6 +56,20 @@ std::string read_token(std::string token_file) {
     return token;
 }
 
+std::string get_screenfetch() {
+	FILE *in;
+	char buff[512];
+	if(!(in = popen("neofetch | sed 's/\x1B[[0-9;?]*[a-zA-Z]//g'", "r"))) {
+		return "Could not run or find neofetch";
+	}
+	std::string fetch = "";
+	while(fgets(buff, sizeof buff, in) != NULL) {
+        fetch = fetch + buff;
+    }
+    pclose(in);
+	return fetch;
+}
+
 int main(int argc, char* argv[]) {
     std::string token = read_token("./token.txt");
     concordpp::debug::set_log_level(concordpp::debug::log_level::INFORMATIONAL);
@@ -62,8 +77,11 @@ int main(int argc, char* argv[]) {
     d_rest = new concordpp::rest::rest_client(token);
     d_gateway->add_callback("MESSAGE_CREATE", on_message);
     d_gateway->add_callback("MESSAGE_CREATE", [](nlohmann::json data){
-        if(data["content"] == "lambda") {
-            d_rest->create_message(data["channel_id"], "Lambda test done.");
+        if(data["content"] == "screenfetch") {
+            std::string fetch = get_screenfetch();
+            if(fetch == "") fetch = "Could not run screenfetch.";
+            else std::replace(fetch.begin(), fetch.end(), '`', '\'');
+            d_rest->create_message(data["channel_id"], "```\n" + fetch + "\n```");
         }
     });
     d_gateway->add_callback("MESSAGE_CREATE", [](nlohmann::json data) {
