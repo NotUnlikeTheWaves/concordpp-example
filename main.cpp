@@ -2,21 +2,22 @@
 #include <json.hpp>
 #include <iostream>
 #include <fstream>
-#include <ctime>
 #include <stdio.h>
 
-int quit = 0;
 concordpp::rest::rest_client *d_rest;
 concordpp::gateway::gateway_client *d_gateway;
 
+    // This is older code, as an example of event callbacks.
+    // I suggest using commands instead for command purposes.
 void on_message(nlohmann::json data) {
-    if(data["content"] == "test me") {
+    std::string content = data["content"];
+    if(content == "test me") {
         d_rest->create_message(data["channel_id"], "This is (not) a test");
-    } else if(data["content"] == "shutdown") {
+    } else if(content == "shutdown") {
         d_rest->create_message(data["channel_id"], "zzz", [](int code, nlohmann::json data) {
                 d_gateway->stop();
         });
-    } else if(data["content"] == "channels") {
+    } else if(content == "channels") {
         std::string tempchan = data["channel_id"];
         std::string *channel = new std::string(tempchan);
         d_rest->get_current_user_guilds([channel](int code, nlohmann::json data){
@@ -42,6 +43,7 @@ void on_message(nlohmann::json data) {
     }
 }
 
+    // Read the token file.
 std::string read_token(std::string token_file) {
     std::string token;
     std::ifstream files;
@@ -56,11 +58,13 @@ std::string read_token(std::string token_file) {
     return token;
 }
 
+    // Attempt to get a neofetch or screenfetch.
 std::string get_screenfetch() {
 	FILE *in;
 	char buff[512];
+        // Try screenfetch first.
 	if(!(in = popen("neofetch | sed 's/\x1B[[0-9;?]*[a-zA-Z]//g'", "r"))) {
-		return "Could not run or find neofetch";
+        return "Could not run neofetch or screenfetch.";
 	}
 	std::string fetch = "";
 	while(fgets(buff, sizeof buff, in) != NULL) {
@@ -76,21 +80,18 @@ int main(int argc, char* argv[]) {
     d_gateway = new concordpp::gateway::gateway_client(token);
     d_rest = new concordpp::rest::rest_client(token);
     d_gateway->add_callback("MESSAGE_CREATE", on_message);
-    d_gateway->add_callback("MESSAGE_CREATE", [](nlohmann::json data){
-        if(data["content"] == "screenfetch") {
-            std::string fetch = get_screenfetch();
-            if(fetch == "") fetch = "Could not run screenfetch.";
-            else std::replace(fetch.begin(), fetch.end(), '`', '\'');
-            d_rest->create_message(data["channel_id"], "```\n" + fetch + "\n```");
-        }
+    d_gateway->add_command("neofetch", [](nlohmann::json data){
+        std::string fetch = get_screenfetch();
+        if(fetch == "") fetch = "Could not run screenfetch.";
+        else std::replace(fetch.begin(), fetch.end(), '`', '\'');
+        d_rest->create_message(data["channel_id"], "```\n" + fetch + "\n```");
     });
-    d_gateway->add_callback("MESSAGE_CREATE", [](nlohmann::json data) {
-        std::string arg = data["content"];
-        std::string cmd = arg.substr(0, arg.find(' '));
-        if(cmd != arg && cmd == "game") {
-            std::string remainder = arg.substr(arg.find(' ') + 1, std::string::npos);
-            d_gateway->set_status(concordpp::gateway::status_types::DO_NOT_DISTURB, remainder);
-        }
+    d_gateway->add_command("set-game", [](nlohmann::json data) {
+        d_gateway->set_status(concordpp::gateway::status_types::DO_NOT_DISTURB, data["content"]);
+    });
+    d_gateway->add_command("echo", [](nlohmann::json data) {
+        std::string response = data["content"];
+        d_rest->create_message(data["channel_id"], "You typed: " + response);
     });
     d_gateway->connect();   // Blocking call
     delete d_gateway;
